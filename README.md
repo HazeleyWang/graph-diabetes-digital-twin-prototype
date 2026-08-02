@@ -48,6 +48,8 @@ A stable linear message-passing check is reported in [`reports/graph_residual_re
 
 The once-only test evaluation of the pre-locked temporal model is in [`reports/locked_temporal_test.md`](reports/locked_temporal_test.md).
 
+Calibration and descriptive subgroup checks are in [`reports/calibration_subgroups.md`](reports/calibration_subgroups.md).
+
 ## Setup
 
 ```powershell

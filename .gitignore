@@ -26,8 +26,8 @@ reports/figures/**
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 !reports/figures/.gitkeep
+!reports/figures/*.png
 
 # Secrets
 .env
 *.key
-
