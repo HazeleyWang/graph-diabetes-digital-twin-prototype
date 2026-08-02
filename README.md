@@ -40,6 +40,8 @@ The longitudinal-signal motivation is tested in [`reports/history_ablation.md`](
 
 The first causal temporal-graph specification is documented in [`docs/GRAPH_DESIGN.md`](docs/GRAPH_DESIGN.md), with generated-graph checks in [`reports/temporal_graph_audit.md`](reports/temporal_graph_audit.md).
 
+Incremental value from the immediately previous encounter is tested in [`reports/temporal_baseline_results.md`](reports/temporal_baseline_results.md).
+
 ## Setup
 
 ```powershell
