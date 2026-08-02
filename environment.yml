@@ -1,0 +1,20 @@
+name: graph-diabetes-twin
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pandas=2.2
+  - numpy=2.1
+  - scipy=1.14
+  - scikit-learn=1.5
+  - networkx=3.4
+  - matplotlib=3.9
+  - seaborn=0.13
+  - jupyterlab=4.3
+  - pyarrow=18
+  - pyyaml=6.0
+  - pytest=8.3
+  - pip
+  - pip:
+      - ucimlrepo==0.0.7
+
