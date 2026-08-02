@@ -30,6 +30,8 @@ python -m src.audit_data
 
 The modelling contract for all 50 variables is in [`reports/data_dictionary.md`](reports/data_dictionary.md). A Chinese, step-by-step learning companion is maintained in [`docs/PROJECT_GUIDE_ZH.md`](docs/PROJECT_GUIDE_ZH.md).
 
+The leakage-safe patient split is summarized in [`reports/split_audit.md`](reports/split_audit.md); its record-level assignment file remains local and Git-ignored.
+
 ## Setup
 
 ```powershell
