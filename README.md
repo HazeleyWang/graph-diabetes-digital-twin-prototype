@@ -22,6 +22,12 @@ The raw files are deliberately excluded from Git. See [`data/README.md`](data/RE
 4. Construct a patient–encounter graph and compare a simple graph model.
 5. Report discrimination, calibration, subgroup performance, and limitations.
 
+The current first-pass findings are in [`reports/data_audit.md`](reports/data_audit.md). Regenerate them with:
+
+```powershell
+python -m src.audit_data
+```
+
 ## Setup
 
 ```powershell
@@ -45,4 +51,3 @@ reports/    Figures and short findings
 - Splits must be grouped by `patient_nbr` to prevent the same patient appearing across evaluation partitions.
 - Sensitive attributes such as race, gender, and age require subgroup checks and careful interpretation.
 - This prototype is research-only and is not a clinical decision-support system.
-
