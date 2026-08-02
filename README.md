@@ -46,6 +46,8 @@ The first learned message-passing comparison is reported in [`reports/graphsage_
 
 A stable linear message-passing check is reported in [`reports/graph_residual_results.md`](reports/graph_residual_results.md).
 
+The once-only test evaluation of the pre-locked temporal model is in [`reports/locked_temporal_test.md`](reports/locked_temporal_test.md).
+
 ## Setup
 
 ```powershell
