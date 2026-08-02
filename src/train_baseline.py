@@ -76,31 +76,47 @@ def prepare_data() -> pd.DataFrame:
     return df
 
 
-def fit_encoder(train: pd.DataFrame, min_frequency: int = 20) -> dict:
-    medians = train[NUMERIC_FEATURES].median().to_numpy(dtype=np.float32)
-    numeric = train[NUMERIC_FEATURES].fillna(pd.Series(dict(zip(NUMERIC_FEATURES, medians))))
+def fit_encoder(
+    train: pd.DataFrame,
+    min_frequency: int = 20,
+    numeric_features: list[str] | None = None,
+    categorical_features: list[str] | None = None,
+) -> dict:
+    numeric_features = numeric_features or NUMERIC_FEATURES
+    categorical_features = categorical_features or CATEGORICAL_FEATURES
+    medians = train[numeric_features].median().to_numpy(dtype=np.float32)
+    numeric = train[numeric_features].fillna(pd.Series(dict(zip(numeric_features, medians))))
     means = numeric.mean().to_numpy(dtype=np.float32)
     scales = numeric.std(ddof=0).replace(0, 1).to_numpy(dtype=np.float32)
     categories = {}
-    for column in CATEGORICAL_FEATURES:
+    for column in categorical_features:
         counts = train[column].value_counts()
         categories[column] = sorted(counts[counts >= min_frequency].index.astype(str).tolist())
-    return {"medians": medians, "means": means, "scales": scales, "categories": categories}
+    return {
+        "medians": medians,
+        "means": means,
+        "scales": scales,
+        "numeric_features": numeric_features,
+        "categorical_features": categorical_features,
+        "categories": categories,
+    }
 
 
 def transform(df: pd.DataFrame, encoder: dict) -> np.ndarray:
-    numeric = df[NUMERIC_FEATURES].copy()
-    for index, column in enumerate(NUMERIC_FEATURES):
+    numeric_features = encoder["numeric_features"]
+    categorical_features = encoder["categorical_features"]
+    numeric = df[numeric_features].copy()
+    for index, column in enumerate(numeric_features):
         numeric[column] = numeric[column].fillna(float(encoder["medians"][index]))
     numeric_array = numeric.to_numpy(dtype=np.float32)
     numeric_array = (numeric_array - encoder["means"]) / encoder["scales"]
 
-    width = len(NUMERIC_FEATURES) + sum(len(values) + 1 for values in encoder["categories"].values())
+    width = len(numeric_features) + sum(len(values) + 1 for values in encoder["categories"].values())
     matrix = np.zeros((len(df), width), dtype=np.float32)
-    matrix[:, : len(NUMERIC_FEATURES)] = numeric_array
+    matrix[:, : len(numeric_features)] = numeric_array
     row_indices = np.arange(len(df))
-    offset = len(NUMERIC_FEATURES)
-    for column in CATEGORICAL_FEATURES:
+    offset = len(numeric_features)
+    for column in categorical_features:
         values = encoder["categories"][column]
         lookup = {value: index for index, value in enumerate(values)}
         other_index = len(values)

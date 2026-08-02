@@ -34,6 +34,10 @@ The leakage-safe patient split is summarized in [`reports/split_audit.md`](repor
 
 The first tabular reference model is summarized in [`reports/baseline_results.md`](reports/baseline_results.md). Model artifacts and record-level predictions remain local.
 
+Validation-only permutation importance is reported in [`reports/baseline_importance.md`](reports/baseline_importance.md).
+
+The longitudinal-signal motivation is tested in [`reports/history_ablation.md`](reports/history_ablation.md).
+
 ## Setup
 
 ```powershell
