@@ -1,75 +1,150 @@
 # Graph Diabetes Digital Twin Prototype
 
-A compact, reproducible research prototype for representing longitudinal diabetes hospital encounters as a patient–encounter graph and evaluating graph-based prediction of 30-day readmission.
+A leakage-aware research prototype for representing repeated diabetes hospital encounters as a causal temporal graph and testing whether observed patient history improves 30-day readmission prediction.
+
+> **Main finding:** prior healthcare utilisation was the strongest tabular signal, but detailed previous-encounter information produced only a small test improvement. A nonlinear GraphSAGE prototype was initialization-sensitive and was not selected as the final model.
+
+![Model comparison](reports/figures/model_comparison.png)
 
 ## Research question
 
-Can a graph representation that connects repeated encounters from the same patient improve readmission-risk modelling over a strong tabular baseline, while yielding clinically interpretable patient-neighbourhood signals?
+Can a directed encounter graph add predictive information beyond a conventional tabular model without leaking future encounters, patient identity, or test-set information?
 
-## Dataset
+## Study design
 
-The project uses **Diabetes 130-US Hospitals for Years 1999–2008** from the UCI Machine Learning Repository (101,766 encounters, 47 features). The dataset is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and should be cited as:
-
-> Clore, J., Cios, K., DeShazo, J., & Strack, B. (2014). Diabetes 130-US Hospitals for Years 1999–2008. UCI Machine Learning Repository. https://doi.org/10.24432/C5230J
-
-The raw files are deliberately excluded from Git. See [`data/README.md`](data/README.md) for download and placement instructions. Although the public dataset is de-identified, it contains sensitive demographic and clinical attributes; do not attempt re-identification and avoid publishing row-level extracts.
-
-## Planned workflow
-
-1. Audit schema, missing-value encodings, duplicates, patient overlap, class balance, and temporal consistency.
-2. Build leakage-aware patient-level train/validation/test splits.
-3. Establish logistic-regression and gradient-boosting baselines.
-4. Construct a patient–encounter graph and compare a simple graph model.
-5. Report discrimination, calibration, subgroup performance, and limitations.
-
-The current first-pass findings are in [`reports/data_audit.md`](reports/data_audit.md). Regenerate them with:
-
-```powershell
-python -m src.audit_data
+```mermaid
+flowchart LR
+    A["101,766 encounters"] --> B["Patient-level 70/15/15 split"]
+    B --> C["Tabular logistic baseline"]
+    C --> D["Causal current-to-previous graph"]
+    D --> E["Lag, residual and GraphSAGE models"]
+    E --> F["Pre-lock model specification"]
+    F --> G["One-time test and subgroup audit"]
 ```
 
-The modelling contract for all 50 variables is in [`reports/data_dictionary.md`](reports/data_dictionary.md). A Chinese, step-by-step learning companion is maintained in [`docs/PROJECT_GUIDE_ZH.md`](docs/PROJECT_GUIDE_ZH.md).
+- **Prediction time:** discharge from the index encounter.
+- **Outcome:** readmission in fewer than 30 days.
+- **Primary cohort:** excludes death/hospice discharge dispositions.
+- **Split unit:** patient, preventing the same patient from crossing partitions.
+- **Graph direction:** current encounter → previous observed encounter.
+- **Evaluation:** validation for development; test used after locking the stable temporal model.
 
-The leakage-safe patient split is summarized in [`reports/split_audit.md`](reports/split_audit.md); its record-level assignment file remains local and Git-ignored.
+## Key results
 
-The first tabular reference model is summarized in [`reports/baseline_results.md`](reports/baseline_results.md). Model artifacts and record-level predictions remain local.
+### Data and graph
 
-Validation-only permutation importance is reported in [`reports/baseline_importance.md`](reports/baseline_importance.md).
+| Quantity | Result |
+|---|---:|
+| Raw encounters | 101,766 |
+| Unique patients | 71,518 |
+| Patients with multiple encounters | 16,773 (23.45%) |
+| Primary-cohort graph nodes | 99,343 |
+| Directed causal-history edges | 29,353 |
+| Nodes with observed history | ~30% |
 
-The longitudinal-signal motivation is tested in [`reports/history_ablation.md`](reports/history_ablation.md).
+### Validation model comparison
 
-The first causal temporal-graph specification is documented in [`docs/GRAPH_DESIGN.md`](docs/GRAPH_DESIGN.md), with generated-graph checks in [`reports/temporal_graph_audit.md`](reports/temporal_graph_audit.md).
+| Model | AUROC | Average precision | Interpretation |
+|---|---:|---:|---|
+| Tabular logistic | 0.639 | 0.198 | Transparent reference |
+| Hand-selected causal history | 0.648 | 0.200 | Strongest stable specification |
+| Linear graph residual | 0.647 | 0.201 | Similar gain with full previous-node message |
+| GraphSAGE, primary seed | 0.655 | 0.212 | Promising single run |
+| GraphSAGE, five-seed mean | 0.636 ± 0.040 | 0.202 ± 0.013 | Too unstable to select |
 
-Incremental value from the immediately previous encounter is tested in [`reports/temporal_baseline_results.md`](reports/temporal_baseline_results.md).
+The model specification was locked before its test evaluation. The selected temporal model achieved:
 
-The first learned message-passing comparison is reported in [`reports/graphsage_results.md`](reports/graphsage_results.md).
+- **Test AUROC:** 0.633 (patient-bootstrap 95% CI 0.615–0.649)
+- **Test average precision:** 0.206 (95% CI 0.175–0.236)
+- **Tabular-to-temporal AUROC change:** +0.48 percentage points
+- **Mean predicted risk / observed rate:** 11.8% / 11.6%
+- **Calibration slope:** 0.840; highest-risk decile was overpredicted
 
-A stable linear message-passing check is reported in [`reports/graph_residual_results.md`](reports/graph_residual_results.md).
+![Calibration curve](reports/figures/calibration.png)
 
-The once-only test evaluation of the pre-locked temporal model is in [`reports/locked_temporal_test.md`](reports/locked_temporal_test.md).
+## Why a graph—and what the experiment showed
 
-Calibration and descriptive subgroup checks are in [`reports/calibration_subgroups.md`](reports/calibration_subgroups.md).
+Permutation importance identified prior-year inpatient visits as the dominant tabular signal. Removing outpatient, emergency, and inpatient utilisation counts reduced validation AUROC from 0.639 to 0.595. This justified testing an explicit longitudinal representation.
 
-## Setup
+The causal graph nevertheless added limited out-of-sample value. This distinction is central to the project:
+
+> Longitudinal history is important, but that does not imply a graph neural network will automatically outperform a well-designed tabular representation.
+
+## Leakage controls
+
+1. Patients are assigned to train, validation, or test before graph construction.
+2. Current encounters can read only previous encounters; edges are never symmetrized.
+3. `encounter_id` is excluded from model inputs and used only as an ordering surrogate.
+4. Previous-node outcome labels are never used as features.
+5. Imputation, scaling, category grouping, and encoders are fitted on training data only.
+6. The test set is evaluated after selecting the stable temporal specification.
+7. Raw data, split assignments, graph files, model artifacts, and row-level predictions remain local.
+
+## Subgroup and calibration checks
+
+The global validation-selected threshold behaved differently when longitudinal history was available: test sensitivity/specificity were 95.4%/10.0% among encounters with history and 40.4%/70.9% among first-observed encounters. This is a warning against treating one threshold as clinically portable.
+
+![Subgroup AUROC](reports/figures/subgroup_auroc.png)
+
+Subgroup results are descriptive. They do not establish fairness, causality, or clinical validity.
+
+## Reproduce the analysis
+
+Download the UCI files as described in [`data/README.md`](data/README.md), then create the environment:
 
 ```powershell
 conda env create -f environment.yml
 conda activate graph-diabetes-twin
 ```
 
-## Structure
+Run the pipeline in order:
 
-```text
-data/       Local data and download instructions
-notebooks/  Numbered exploratory and modelling notebooks
-src/        Reusable project code
-tests/      Automated checks
-reports/    Figures and short findings
+```powershell
+python -m src.audit_data
+python -m src.build_data_dictionary
+python -m src.create_splits
+python -m src.train_baseline
+python -m src.analyze_baseline
+python -m src.run_history_ablation
+python -m src.build_temporal_graph
+python -m src.train_temporal_baseline
+python -m src.train_graphsage_prototype
+python -m src.train_graph_residual
+python -m src.evaluate_locked_temporal_model
+python -m src.analyze_calibration_subgroups
+python -m unittest discover
 ```
 
-## Reproducibility and ethics
+## Repository guide
 
-- Raw and derived row-level data remain local.
-- Splits must be grouped by `patient_nbr` to prevent the same patient appearing across evaluation partitions.
-- Sensitive attributes such as race, gender, and age require subgroup checks and careful interpretation.
-- This prototype is research-only and is not a clinical decision-support system.
+```text
+data/       Source instructions; raw and derived row-level data remain local
+docs/       Graph specification, Chinese learning guide, application material
+reports/    Aggregate audits, model comparisons, and figures
+src/        Reproducible data, modelling, graph, and evaluation modules
+tests/      Reserved for automated regression tests
+```
+
+- Start with the Chinese companion: [`docs/PROJECT_GUIDE_ZH.md`](docs/PROJECT_GUIDE_ZH.md)
+- Review graph safety: [`docs/GRAPH_DESIGN.md`](docs/GRAPH_DESIGN.md)
+- Read the locked test report: [`reports/locked_temporal_test.md`](reports/locked_temporal_test.md)
+- Review calibration/subgroups: [`reports/calibration_subgroups.md`](reports/calibration_subgroups.md)
+- Reuse application wording: [`docs/APPLICATION_MATERIALS.md`](docs/APPLICATION_MATERIALS.md)
+
+## Limitations
+
+- The dataset is retrospective and covers 1999–2008 care across heterogeneous hospitals.
+- No explicit timestamps are available; numeric encounter ID is only a chronology surrogate.
+- Only ~30% of eligible encounter nodes have an observed prior encounter.
+- No hospital identifier is available for site-level external validation.
+- GraphSAGE stability was inadequate, and the selected temporal gain was small.
+- Subgroup estimates lack external validation and should not guide care.
+- This prototype is not a medical device or clinical decision-support system.
+
+## Dataset and responsible use
+
+The project uses **Diabetes 130-US Hospitals for Years 1999–2008** from the UCI Machine Learning Repository under CC BY 4.0:
+
+> Clore, J., Cios, K., DeShazo, J., & Strack, B. (2014). Diabetes 130-US Hospitals for Years 1999–2008. UCI Machine Learning Repository. https://doi.org/10.24432/C5230J
+
+The public dataset is de-identified but contains sensitive demographic and clinical attributes. Do not attempt re-identification or publish row-level extracts.
