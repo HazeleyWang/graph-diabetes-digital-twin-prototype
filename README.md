@@ -32,6 +32,8 @@ The modelling contract for all 50 variables is in [`reports/data_dictionary.md`]
 
 The leakage-safe patient split is summarized in [`reports/split_audit.md`](reports/split_audit.md); its record-level assignment file remains local and Git-ignored.
 
+The first tabular reference model is summarized in [`reports/baseline_results.md`](reports/baseline_results.md). Model artifacts and record-level predictions remain local.
+
 ## Setup
 
 ```powershell
