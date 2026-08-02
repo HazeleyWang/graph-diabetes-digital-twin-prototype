@@ -42,6 +42,10 @@ The first causal temporal-graph specification is documented in [`docs/GRAPH_DESI
 
 Incremental value from the immediately previous encounter is tested in [`reports/temporal_baseline_results.md`](reports/temporal_baseline_results.md).
 
+The first learned message-passing comparison is reported in [`reports/graphsage_results.md`](reports/graphsage_results.md).
+
+A stable linear message-passing check is reported in [`reports/graph_residual_results.md`](reports/graph_residual_results.md).
+
 ## Setup
 
 ```powershell
