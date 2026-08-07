@@ -44,6 +44,42 @@ def patient_bootstrap(
     }
 
 
+def paired_patient_bootstrap(
+    y: np.ndarray,
+    reference_probability: np.ndarray,
+    candidate_probability: np.ndarray,
+    patients: np.ndarray,
+    repeats: int = 500,
+) -> dict[str, dict[str, float | tuple[float, float]]]:
+    """Bootstrap paired metric changes while retaining patient clusters."""
+    rng = np.random.default_rng(20260803)
+    unique_patients, patient_codes = np.unique(patients, return_inverse=True)
+    groups = [np.flatnonzero(patient_codes == index) for index in range(len(unique_patients))]
+    metric_names = ["auroc", "average_precision", "brier_score"]
+    draws = {metric: [] for metric in metric_names}
+    for _ in range(repeats):
+        sampled = rng.integers(0, len(unique_patients), len(unique_patients))
+        row_indices = np.concatenate([groups[index] for index in sampled])
+        reference = metric_bundle(y[row_indices], reference_probability[row_indices])
+        candidate = metric_bundle(y[row_indices], candidate_probability[row_indices])
+        for metric in metric_names:
+            draws[metric].append(candidate[metric] - reference[metric])
+    return {
+        metric: {
+            "interval": (
+                float(np.percentile(values, 2.5)),
+                float(np.percentile(values, 97.5)),
+            ),
+            "probability_candidate_better": float(
+                np.mean(np.asarray(values) < 0)
+                if metric == "brier_score"
+                else np.mean(np.asarray(values) > 0)
+            ),
+        }
+        for metric, values in draws.items()
+    }
+
+
 def main() -> None:
     data = add_causal_history(prepare_data())
     validation = data[data["split"] == "validation"].reset_index(drop=True)
@@ -73,6 +109,12 @@ def main() -> None:
         transform(test, tabular["encoder"]) @ tabular["weights"] + tabular["bias"]
     )
     tabular_test = metric_bundle(y_test, tabular_probability)
+    paired_change = paired_patient_bootstrap(
+        y_test,
+        tabular_probability,
+        test_probability,
+        test["patient_nbr"].to_numpy(),
+    )
 
     has_history = test["observed_prior_encounters"].to_numpy() > 0
     history_metrics = metric_bundle(y_test[has_history], test_probability[has_history], threshold)
@@ -90,14 +132,24 @@ The operating threshold **{threshold:.3f}** was selected on validation data by Y
 
 | Metric | Estimate | Patient-bootstrap 95% CI |
 |---|---:|---:|
-| AUROC | {temporal_test['auroc']:.3f} | {confidence['auroc'][0]:.3f}–{confidence['auroc'][1]:.3f} |
-| Average precision | {temporal_test['average_precision']:.3f} | {confidence['average_precision'][0]:.3f}–{confidence['average_precision'][1]:.3f} |
-| Brier score | {temporal_test['brier_score']:.3f} | {confidence['brier_score'][0]:.3f}–{confidence['brier_score'][1]:.3f} |
-| Precision | {temporal_test['precision']:.3f} | — |
-| Sensitivity | {temporal_test['recall_sensitivity']:.3f} | — |
-| Specificity | {temporal_test['specificity']:.3f} | — |
+| AUROC | {temporal_test['auroc']:.3f} | {confidence['auroc'][0]:.3f} to {confidence['auroc'][1]:.3f} |
+| Average precision | {temporal_test['average_precision']:.3f} | {confidence['average_precision'][0]:.3f} to {confidence['average_precision'][1]:.3f} |
+| Brier score | {temporal_test['brier_score']:.3f} | {confidence['brier_score'][0]:.3f} to {confidence['brier_score'][1]:.3f} |
+| Precision | {temporal_test['precision']:.3f} | Not estimated |
+| Sensitivity | {temporal_test['recall_sensitivity']:.3f} | Not estimated |
+| Specificity | {temporal_test['specificity']:.3f} | Not estimated |
 
 For context, the locked tabular test AUROC was **{tabular_test['auroc']:.3f}** and average precision was **{tabular_test['average_precision']:.3f}**. The temporal model changed test AUROC by **{100 * (temporal_test['auroc'] - tabular_test['auroc']):+.2f} percentage points** and average precision by **{100 * (temporal_test['average_precision'] - tabular_test['average_precision']):+.2f} percentage points**.
+
+## Paired incremental value
+
+Each bootstrap draw resamples patients once and evaluates both locked models on exactly the same encounters. This directly quantifies uncertainty in the model difference.
+
+| Candidate minus tabular | Point change | Patient-bootstrap 95% CI | Probability candidate is better |
+|---|---:|---:|---:|
+| AUROC | {temporal_test['auroc'] - tabular_test['auroc']:+.4f} | {paired_change['auroc']['interval'][0]:+.4f} to {paired_change['auroc']['interval'][1]:+.4f} | {100 * paired_change['auroc']['probability_candidate_better']:.1f}% |
+| Average precision | {temporal_test['average_precision'] - tabular_test['average_precision']:+.4f} | {paired_change['average_precision']['interval'][0]:+.4f} to {paired_change['average_precision']['interval'][1]:+.4f} | {100 * paired_change['average_precision']['probability_candidate_better']:.1f}% |
+| Brier score | {temporal_test['brier_score'] - tabular_test['brier_score']:+.4f} | {paired_change['brier_score']['interval'][0]:+.4f} to {paired_change['brier_score']['interval'][1]:+.4f} | {100 * paired_change['brier_score']['probability_candidate_better']:.1f}% |
 
 ## History-availability diagnostic
 
@@ -108,7 +160,7 @@ For context, the locked tabular test AUROC was **{tabular_test['auroc']:.3f}** a
 
 ## Interpretation boundary
 
-This is a research prototype on retrospective, de-identified data from 1999–2008. It is not clinically validated. Encounter ordering is a surrogate, calibration requires deeper assessment, and external validation is absent. The honest contribution is a leakage-aware comparison showing whether limited observed history adds incremental predictive value.
+This is a research prototype on retrospective, de-identified data from 1999-2008. It is not clinically validated. Encounter ordering is a surrogate, calibration requires deeper assessment, and external validation is absent. The honest contribution is a leakage-aware comparison showing whether limited observed history adds incremental predictive value.
 """
     REPORT_PATH.write_text(report, encoding="utf-8")
     print(f"Wrote {REPORT_PATH}")
@@ -116,4 +168,3 @@ This is a research prototype on retrospective, de-identified data from 1999–20
 
 if __name__ == "__main__":
     main()
-

@@ -15,6 +15,19 @@ GRAPH_DIR = PROJECT_ROOT / "data" / "processed" / "temporal_graph"
 REPORT_PATH = PROJECT_ROOT / "reports" / "temporal_graph_audit.md"
 
 
+def validate_temporal_edges(nodes: pd.DataFrame, labels: pd.DataFrame, edges: pd.DataFrame) -> None:
+    """Enforce graph invariants before any row-level artifact is written."""
+    node_ids = set(nodes["node_id"])
+    assert edges["source_current"].isin(node_ids).all()
+    assert edges["target_previous"].isin(node_ids).all()
+    assert (
+        pd.to_numeric(edges["source_current"])
+        > pd.to_numeric(edges["target_previous"])
+    ).all()
+    assert nodes["node_id"].is_unique
+    assert labels["node_id"].is_unique
+
+
 def patient_token(patient_nbr: str) -> str:
     """Create a local pseudonymous grouping token; never commit the mapping."""
     value = f"graph-patient-v1:{patient_nbr}".encode()
@@ -65,15 +78,7 @@ def main() -> None:
         )
         edges["relation"] = "previous_encounter"
 
-        node_ids = set(nodes["node_id"])
-        assert edges["source_current"].isin(node_ids).all()
-        assert edges["target_previous"].isin(node_ids).all()
-        assert (
-            pd.to_numeric(edges["source_current"])
-            > pd.to_numeric(edges["target_previous"])
-        ).all()
-        assert nodes["node_id"].is_unique
-        assert labels["node_id"].is_unique
+        validate_temporal_edges(nodes, labels, edges)
 
         nodes.to_csv(GRAPH_DIR / f"{split}_nodes.csv", index=False)
         edges.to_csv(GRAPH_DIR / f"{split}_edges.csv", index=False)
@@ -138,4 +143,3 @@ Only encounters with an observed earlier encounter can benefit directly from tem
 
 if __name__ == "__main__":
     main()
-

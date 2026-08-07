@@ -21,9 +21,11 @@ def main() -> None:
         ("Tabular logistic", 0.639, None, "#64748b"),
         ("Hand-selected causal history", 0.648, None, "#2563eb"),
         ("Linear graph residual", 0.647, None, "#0f766e"),
+        ("Nonlinear boosted-tree baseline", 0.645, None, "#d97706"),
+        ("Boosted tree + causal history", 0.651, None, "#ea580c"),
         ("GraphSAGE (5-seed mean)", 0.636, 0.040, "#7c3aed"),
     ]
-    width, height = 1180, 520
+    width, height = 1180, 660
     image = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(image)
     left, right, top = 390, 1080, 105
@@ -45,8 +47,8 @@ def main() -> None:
             draw.line((x_low, y + 27, x_high, y + 27), fill=color, width=3)
             draw.line((x_low, y + 20, x_low, y + 34), fill=color, width=3)
             draw.line((x_high, y + 20, x_high, y + 34), fill=color, width=3)
-            draw.text((x_high + 10, y + 17), "±1 SD", fill="#64748b", font=font(14))
-    draw.text((650, 485), "AUROC (validation)", fill="#172033", font=font(19))
+            draw.text((x_high + 10, y + 17), "+/- 1 SD", fill="#64748b", font=font(14))
+    draw.text((650, height - 35), "AUROC (validation)", fill="#172033", font=font(19))
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     image.save(OUTPUT)
     print(f"Wrote {OUTPUT}")
